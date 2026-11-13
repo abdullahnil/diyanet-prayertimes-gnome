@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.prayer-times-nil" path="/org/gnome/shell/extensions/prayer-times-nil/">
+  <schema id="org.gnome.shell.extensions.diyanet-prayertimes-gnome" path="/org/gnome/shell/extensions/diyanet-prayertimes-gnome/">
     <key name="source" type="s">
       <choices>
         <choice value="diyanet"/>

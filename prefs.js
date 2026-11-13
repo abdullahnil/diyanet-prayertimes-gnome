@@ -61,7 +61,7 @@ function makeCombo(title, labels) {
     return row;
 }
 
-export default class PrayerTimesNilPreferences extends ExtensionPreferences {
+export default class DiyanetPrayerTimesPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
         const t = T[settings.get_string('language')] || T.tr;

@@ -1,9 +1,9 @@
 {
-  "uuid": "prayer-times-nil@abdullahnil",
-  "name": "Prayer Times Nil",
-  "description": "Panelde bir sonraki namaz vaktine geri sayım (örn. \"İkindiye 0.20.35\") ve günün vakitlerini gösteren menü. Diyanet (NilTab proxy) veya Aladhan kaynağı.",
+  "uuid": "diyanet-prayertimes-gnome@abdullahnil.com",
+  "name": "Diyanet Prayer Times",
+  "description": "Shows a countdown to the next prayer in the top bar (e.g. \"Asr in 0.20.35\") and today's prayer times with the Hijri date in a menu. Times come from the Turkish Presidency of Religious Affairs (Diyanet) or are calculated by Aladhan. Turkish and English.\n\nUnofficial; not affiliated with Diyanet. Network use: Diyanet times are fetched through the author's proxy (nilsaver.abdullahnil.com) using the selected city id; Aladhan (api.aladhan.com) receives the selected coordinates; city search uses Open-Meteo (geocoding-api.open-meteo.com). Times are cached locally, so requests are made about once a month. No tracking.\n\nPanelde bir sonraki namaz vaktine geri sayım (örn. \"İkindiye 0.20.35\") ve günün vakitlerini gösterir. Kaynak: Diyanet veya Aladhan.",
   "shell-version": ["50"],
-  "settings-schema": "org.gnome.shell.extensions.prayer-times-nil",
-  "url": "https://github.com/abdullahnil",
+  "settings-schema": "org.gnome.shell.extensions.diyanet-prayertimes-gnome",
+  "url": "https://github.com/abdullahnil/diyanet-prayertimes-gnome",
   "version-name": "1.0"
 }

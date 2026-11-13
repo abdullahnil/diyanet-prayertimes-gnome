@@ -36,13 +36,13 @@ function infoItem(styleClass) {
 const PrayerIndicator = GObject.registerClass(
 class PrayerIndicator extends PanelMenu.Button {
     _init(extension) {
-        super._init(0.5, 'Prayer Times Nil', false);
+        super._init(0.5, 'Diyanet Prayer Times', false);
 
         this._extension = extension;
         this._settings = extension.getSettings();
         this._cancellable = new Gio.Cancellable();
         this._session = createSession();
-        const cachePath = GLib.build_filenamev([GLib.get_user_cache_dir(), 'prayer-times-nil', 'times.json']);
+        const cachePath = GLib.build_filenamev([GLib.get_user_cache_dir(), 'diyanet-prayertimes-gnome', 'times.json']);
         this._store = new PrayerStore(this._session, cachePath);
 
         this._fetching = false;
@@ -143,7 +143,7 @@ class PrayerIndicator extends PanelMenu.Button {
                 return;
             this._error = e;
             this._retryDelay = Math.min(this._retryDelay * 2, RETRY_MAX_SECONDS);
-            console.warn(`[prayer-times-nil] ${e.message ?? e}`);
+            console.warn(`[diyanet-prayertimes-gnome] ${e.message ?? e}`);
         } finally {
             this._fetching = false;
         }
@@ -370,7 +370,7 @@ class PrayerIndicator extends PanelMenu.Button {
     }
 });
 
-export default class PrayerTimesNilExtension extends Extension {
+export default class DiyanetPrayerTimesExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._addIndicator();

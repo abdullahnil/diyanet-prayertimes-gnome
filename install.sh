@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Installs Prayer Times Nil into the current user's GNOME Shell extensions folder.
+# Installs Diyanet Prayer Times into the current user's GNOME Shell extensions folder.
 set -euo pipefail
 
-UUID="prayer-times-nil@abdullahnil"
+UUID="diyanet-prayertimes-gnome@abdullahnil.com"
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEST="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$UUID"
 
