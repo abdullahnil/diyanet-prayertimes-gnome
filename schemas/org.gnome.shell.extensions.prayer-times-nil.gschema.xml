@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.prayer-times-nil" path="/org/gnome/shell/extensions/prayer-times-nil/">
+    <key name="source" type="s">
+      <choices>
+        <choice value="diyanet"/>
+        <choice value="aladhan"/>
+      </choices>
+      <default>'diyanet'</default>
+      <summary>Prayer time source</summary>
+    </key>
+
+    <key name="diyanet-country-id" type="i">
+      <default>2</default>
+      <summary>Diyanet country id</summary>
+    </key>
+    <key name="diyanet-state-id" type="i">
+      <default>540</default>
+      <summary>Diyanet state (il) id</summary>
+    </key>
+    <key name="diyanet-city-id" type="i">
+      <default>9560</default>
+      <summary>Diyanet city (ilçe) id</summary>
+    </key>
+    <key name="diyanet-city-name" type="s">
+      <default>'İZMİR'</default>
+      <summary>Display name of the Diyanet city</summary>
+    </key>
+
+    <key name="aladhan-city-name" type="s">
+      <default>'İzmir'</default>
+      <summary>Display name of the Aladhan location</summary>
+    </key>
+    <key name="latitude" type="d">
+      <default>38.4127</default>
+      <summary>Latitude for Aladhan</summary>
+    </key>
+    <key name="longitude" type="d">
+      <default>27.1384</default>
+      <summary>Longitude for Aladhan</summary>
+    </key>
+    <key name="aladhan-method" type="i">
+      <default>13</default>
+      <summary>Aladhan calculation method</summary>
+    </key>
+
+    <key name="language" type="s">
+      <choices>
+        <choice value="tr"/>
+        <choice value="en"/>
+      </choices>
+      <default>'tr'</default>
+      <summary>UI language</summary>
+    </key>
+    <key name="show-seconds" type="b">
+      <default>true</default>
+      <summary>Show seconds in the panel countdown</summary>
+    </key>
+    <key name="panel-position" type="s">
+      <choices>
+        <choice value="left"/>
+        <choice value="center"/>
+        <choice value="right"/>
+      </choices>
+      <default>'right'</default>
+      <summary>Panel box for the indicator</summary>
+    </key>
+
+    <key name="proxy-url" type="s">
+      <default>'https://nilsaver.abdullahnil.com'</default>
+      <summary>NilTab Diyanet proxy base URL</summary>
+    </key>
+  </schema>
+</schemalist>

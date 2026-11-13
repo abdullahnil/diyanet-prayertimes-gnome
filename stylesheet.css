@@ -1,0 +1,69 @@
+/* Prayer Times Nil — follows the GNOME Shell theme; only adds spacing and emphasis. */
+
+.ptn-panel-label {
+  font-feature-settings: "tnum";
+}
+
+.ptn-menu {
+  min-width: 290px;
+}
+
+.ptn-header {
+  padding-top: 8px;
+  padding-bottom: 4px;
+}
+
+.ptn-title {
+  font-weight: bold;
+  font-size: 1.15em;
+}
+
+.ptn-subtitle {
+  font-size: 0.85em;
+  margin-top: 2px;
+}
+
+.ptn-countdown-item {
+  padding-top: 4px;
+  padding-bottom: 6px;
+}
+
+.ptn-countdown {
+  font-size: 1.05em;
+  font-weight: bold;
+  font-feature-settings: "tnum";
+  color: -st-accent-color;
+}
+
+.ptn-row {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.ptn-marker {
+  min-width: 14px;
+  font-size: 0.7em;
+  color: -st-accent-color;
+}
+
+.ptn-row-time {
+  font-feature-settings: "tnum";
+}
+
+.ptn-row.ptn-current {
+  font-weight: bold;
+}
+
+.ptn-row.ptn-current .ptn-row-name,
+.ptn-row.ptn-current .ptn-row-time {
+  color: -st-accent-color;
+}
+
+.ptn-row.ptn-next .ptn-row-name,
+.ptn-row.ptn-next .ptn-row-time {
+  font-weight: bold;
+}
+
+.ptn-status {
+  font-size: 0.8em;
+}

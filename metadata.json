@@ -1,0 +1,9 @@
+{
+  "uuid": "prayer-times-nil@abdullahnil",
+  "name": "Prayer Times Nil",
+  "description": "Panelde bir sonraki namaz vaktine geri sayım (örn. \"İkindiye 0.20.35\") ve günün vakitlerini gösteren menü. Diyanet (NilTab proxy) veya Aladhan kaynağı.",
+  "shell-version": ["50"],
+  "settings-schema": "org.gnome.shell.extensions.prayer-times-nil",
+  "url": "https://github.com/abdullahnil",
+  "version-name": "1.0"
+}
