@@ -15,8 +15,13 @@ import {
 } from './lib/prayerData.js';
 import {getStrings, hijriText, titleCase} from './lib/i18n.js';
 
-const RETRY_SECONDS = 60;
+const RETRY_MIN_SECONDS = 60;
+const RETRY_MAX_SECONDS = 30 * 60;
+const SETTINGS_DEBOUNCE_MS = 300;
 const PAST_OPACITY = 120;
+
+// Settings that change which prayer times have to be fetched.
+const FETCH_KEYS = ['source', 'proxy-url', 'diyanet-city-id', 'latitude', 'longitude', 'aladhan-method'];
 
 // A menu item that is not clickable/hoverable but is not drawn dimmed like disabled items.
 function infoItem(styleClass) {
@@ -41,10 +46,14 @@ class PrayerIndicator extends PanelMenu.Button {
         this._store = new PrayerStore(this._session, cachePath);
 
         this._fetching = false;
+        this._pendingReload = null; // {force} when a reload was requested while fetching
         this._error = null;
         this._lastAttempt = 0;
+        this._retryDelay = RETRY_MIN_SECONDS;
         this._renderedSignature = null;
         this._tickId = 0;
+        this._settingsTimeoutId = 0;
+        this._pendingKeys = new Set();
 
         this._label = new St.Label({
             text: '…',
@@ -54,12 +63,23 @@ class PrayerIndicator extends PanelMenu.Button {
         this.add_child(this._label);
 
         this.menu.box.add_style_class_name('ptn-menu');
-        this.menu.connect('open-state-changed', (_menu, open) => {
-            if (open)
-                this._tick();
+        // The menu always shows seconds, so tick every second while it is open.
+        // (Guarded: destroying an open menu emits this after destroy() cleared the settings.)
+        this.menu.connect('open-state-changed', () => {
+            if (this._settings)
+                this._restartTick();
         });
 
         this._settingsChangedId = this._settings.connect('changed', (_s, key) => this._onSettingChanged(key));
+
+        // Retry right away when the network comes back instead of waiting for the backoff.
+        this._networkMonitor = Gio.NetworkMonitor.get_default();
+        this._networkChangedId = this._networkMonitor.connect('network-changed', (_m, available) => {
+            if (available && this._error) {
+                this._retryDelay = RETRY_MIN_SECONDS;
+                this._reload(false);
+            }
+        });
 
         this._buildMenu();
         this._reload(false);
@@ -68,20 +88,32 @@ class PrayerIndicator extends PanelMenu.Button {
 
     // ---- settings ------------------------------------------------------
 
+    // Preferences write several keys in a row (e.g. city name, latitude, longitude),
+    // so collect them and apply once the burst is over.
     _onSettingChanged(key) {
         if (key === 'panel-position')
             return; // handled by the extension (re-adds the indicator)
-        if (['language', 'show-seconds'].includes(key)) {
-            this._buildMenu();
-            this._tick();
-            return;
-        }
-        if (key === 'diyanet-country-id' || key === 'diyanet-state-id')
-            return; // only the city id matters for fetching
-        // Location/source changed: refetch.
-        this._error = null;
+        this._pendingKeys.add(key);
+        if (this._settingsTimeoutId)
+            GLib.source_remove(this._settingsTimeoutId);
+        this._settingsTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SETTINGS_DEBOUNCE_MS, () => {
+            this._settingsTimeoutId = 0;
+            this._applySettingChanges();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _applySettingChanges() {
+        const keys = [...this._pendingKeys];
+        this._pendingKeys.clear();
+
         this._buildMenu();
-        this._reload(false);
+        if (keys.some(k => FETCH_KEYS.includes(k))) {
+            this._error = null;
+            this._retryDelay = RETRY_MIN_SECONDS;
+            this._reload(false);
+        }
+        this._restartTick();
     }
 
     get _strings() {
@@ -91,8 +123,11 @@ class PrayerIndicator extends PanelMenu.Button {
     // ---- data ------------------------------------------------------------
 
     async _reload(force) {
-        if (this._fetching)
+        if (this._fetching) {
+            // Don't drop it: the running fetch may be for outdated settings.
+            this._pendingReload = {force: force || !!this._pendingReload?.force};
             return;
+        }
         this._fetching = true;
         this._lastAttempt = Date.now();
         if (!this._store.hasData())
@@ -102,31 +137,51 @@ class PrayerIndicator extends PanelMenu.Button {
             await this._store.ensure(configFromSettings(this._settings), [now, addDays(now, 1)],
                 {cancellable: this._cancellable, force});
             this._error = null;
+            this._retryDelay = RETRY_MIN_SECONDS;
         } catch (e) {
             if (isCancelled(e))
                 return;
             this._error = e;
+            this._retryDelay = Math.min(this._retryDelay * 2, RETRY_MAX_SECONDS);
             console.warn(`[prayer-times-nil] ${e.message ?? e}`);
         } finally {
             this._fetching = false;
         }
-        if (!this._cancellable.is_cancelled()) {
-            this._renderedSignature = null;
-            this._tick();
-        }
+        if (this._cancellable.is_cancelled())
+            return;
+
+        this._renderedSignature = null;
+        this._tick();
+
+        const pending = this._pendingReload;
+        this._pendingReload = null;
+        if (pending)
+            this._reload(pending.force);
     }
 
     // ---- timer -----------------------------------------------------------
 
-    // Re-arm every tick so updates land just after each wall-clock second.
+    // Re-arm every tick so updates land just after each wall-clock second (or minute,
+    // when neither the panel nor the open menu needs seconds).
     _scheduleTick() {
-        const delay = 1000 - (Date.now() % 1000) + 15;
+        const perSecond = this.menu.isOpen || this._settings.get_boolean('show-seconds');
+        const period = perSecond ? 1000 : 60 * 1000;
+        const delay = period - (Date.now() % period) + 15;
         this._tickId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
             this._tickId = 0;
             this._tick();
             this._scheduleTick();
             return GLib.SOURCE_REMOVE;
         });
+    }
+
+    _restartTick() {
+        if (this._tickId) {
+            GLib.source_remove(this._tickId);
+            this._tickId = 0;
+        }
+        this._tick();
+        this._scheduleTick();
     }
 
     _tick() {
@@ -136,7 +191,7 @@ class PrayerIndicator extends PanelMenu.Button {
 
         // Fetch when today/tomorrow is missing (new day, new month, first run), with retry backoff.
         const needsData = !state || !this._store.getDay(addDays(now, 1));
-        if (needsData && !this._fetching && Date.now() - this._lastAttempt > RETRY_SECONDS * 1000)
+        if (needsData && !this._fetching && Date.now() - this._lastAttempt > this._retryDelay * 1000)
             this._reload(false);
 
         if (!state) {
@@ -150,7 +205,8 @@ class PrayerIndicator extends PanelMenu.Button {
         this._label.text = s.panel(state.next.key, countdown, s);
 
         // Rebuild rows only when the day or the current/next prayer changes.
-        const signature = `${dayKey(now)}|${state.currentKey}|${state.next.key}|${this._error ? 1 : 0}|${this._settings.get_string('language')}`;
+        const signature = [dayKey(now), state.nextIdx, state.next.key, this._error ? 1 : 0,
+            state.tzMismatch ? 1 : 0, this._settings.get_string('language')].join('|');
         if (signature !== this._renderedSignature) {
             this._renderedSignature = signature;
             this._renderState(state, now);
@@ -260,12 +316,19 @@ class PrayerIndicator extends PanelMenu.Button {
         const hijri = hijriText(state.day.hijri, lang);
         this._hijriLabel.text = hijri;
         this._hijriLabel.visible = !!hijri;
-        this._statusLabel.text = this._error ? s.offline : this._sourceText();
+        if (this._error)
+            this._statusLabel.text = s.offline;
+        else if (state.tzMismatch)
+            this._statusLabel.text = s.tzMismatch;
+        else
+            this._statusLabel.text = this._sourceText();
 
         state.events.forEach((ev, idx) => {
             const r = this._rows[ev.key];
             r.time.text = ev.time;
-            const isCurrent = ev.key === state.currentKey;
+            // Before imsak the current prayer is yesterday's yatsı; today's yatsı row
+            // (still ahead) must not be highlighted as current.
+            const isCurrent = ev.key === state.currentKey && state.nextIdx !== 0;
             const isNext = !state.next.tomorrow && ev.key === state.next.key;
             const isPast = state.nextIdx === -1 ? true : idx < state.nextIdx;
             r.row.opacity = isPast && !isCurrent ? PAST_OPACITY : 255;
@@ -287,11 +350,20 @@ class PrayerIndicator extends PanelMenu.Button {
             GLib.source_remove(this._tickId);
             this._tickId = 0;
         }
+        if (this._settingsTimeoutId) {
+            GLib.source_remove(this._settingsTimeoutId);
+            this._settingsTimeoutId = 0;
+        }
         this._cancellable.cancel();
         if (this._settingsChangedId) {
             this._settings.disconnect(this._settingsChangedId);
             this._settingsChangedId = 0;
         }
+        if (this._networkChangedId) {
+            this._networkMonitor.disconnect(this._networkChangedId);
+            this._networkChangedId = 0;
+        }
+        this._networkMonitor = null;
         this._session.abort();
         this._settings = null;
         super.destroy();

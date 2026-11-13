@@ -21,6 +21,9 @@ Vakitler `~/.cache/prayer-times-nil/times.json` dosyasında saklanır (Diyanet i
 İnternet yokken kayıtlı vakitler kullanılır; ağ isteği yalnızca veri eksikse atılır.
 
 Not: Saatler seçilen şehrin yerel saatidir; bilgisayarın saat dilimi de o şehirle aynı olmalıdır.
+Farklıysa menüde uyarı gösterilir.
+
+Aladhan'da şehir ararken birden fazla sonuç çıkarsa (aynı adlı şehirler) listeden doğrusu seçilir.
 
 ## Kurulum
 
@@ -44,14 +47,22 @@ prefs.js            Ayarlar penceresi (Adwaita)
 lib/prayerData.js   Ağ, önbellek, vakit hesaplama (shell'den bağımsız)
 lib/i18n.js         Türkçe / İngilizce metinler
 schemas/            GSettings şeması
-tests/run.js        Veri katmanı testleri (gerçek servislere istek atar)
+tests/unit.js       Çevrimdışı testler (ayrıştırma, vakit hesabı, biçimlendirme)
+tests/run.js        Uçtan uca testler (gerçek servislere istek atar)
 ```
 
 ```bash
-gjs -m tests/run.js
+gjs -m tests/unit.js   # hızlı, ağ gerekmez
+gjs -m tests/run.js    # Diyanet proxy, Aladhan ve Open-Meteo'ya istek atar
 ```
+
+extensions.gnome.org için paket: `./install.sh --pack`
 
 Kod değişikliğinden sonra `./install.sh` çalıştırıp oturumu yeniden açın. Hızlı deneme için iç içe
 (nested) bir shell: `dbus-run-session gnome-shell --devkit --wayland`.
 
 Hata günlükleri: `journalctl --user -f -o cat /usr/bin/gnome-shell | grep prayer-times-nil`
+
+## Lisans
+
+GPL-2.0-or-later — bkz. [LICENSE](LICENSE).

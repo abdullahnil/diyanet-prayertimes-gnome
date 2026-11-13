@@ -2,6 +2,7 @@
 // Exercises the data layer against the real services (Diyanet via proxy, Aladhan) and the schedule math.
 
 import GLib from 'gi://GLib';
+import System from 'system';
 import {
     PrayerStore, computeState, formatCountdown, createSession, fetchDiyanetPlaces,
     geocodeCity, addDays, DEFAULT_PROXY_URL,
@@ -89,3 +90,5 @@ main().catch(e => {
     loop.quit();
 });
 loop.run();
+if (failures > 0)
+    System.exit(1);

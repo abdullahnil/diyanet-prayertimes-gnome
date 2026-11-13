@@ -6,11 +6,18 @@ UUID="prayer-times-nil@abdullahnil"
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEST="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$UUID"
 
+# ./install.sh --pack  ->  builds a zip for extensions.gnome.org instead of installing.
+if [[ "${1:-}" == "--pack" ]]; then
+    gnome-extensions pack "$SRC" --force --out-dir="$SRC" --extra-source=lib --extra-source=LICENSE
+    echo "Paket: $SRC/$UUID.shell-extension.zip"
+    exit 0
+fi
+
 glib-compile-schemas "$SRC/schemas"
 
 mkdir -p "$DEST"
 rm -rf "${DEST:?}/"*
-cp -r "$SRC/metadata.json" "$SRC/extension.js" "$SRC/prefs.js" "$SRC/stylesheet.css" "$SRC/lib" "$SRC/schemas" "$DEST/"
+cp -r "$SRC/metadata.json" "$SRC/extension.js" "$SRC/prefs.js" "$SRC/stylesheet.css" "$SRC/lib" "$SRC/schemas" "$SRC/LICENSE" "$DEST/"
 
 echo "Kuruldu: $DEST"
 

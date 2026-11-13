@@ -5,7 +5,7 @@ import Gio from 'gi://Gio';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 import {
-    createSession, fetchDiyanetPlaces, geocodeCity, isCancelled, ALADHAN_METHODS,
+    createSession, fetchDiyanetPlaces, searchCities, isCancelled, ALADHAN_METHODS,
 } from './lib/prayerData.js';
 import {titleCase} from './lib/i18n.js';
 
@@ -24,6 +24,7 @@ const T = {
         aladhanDesc: 'Matematiksel hesaplama; resmi Diyanet takviminden 1-2 dakika sapabilir.',
         searchCity: 'Şehir ara', currentLocation: 'Seçili konum',
         searching: 'Aranıyor…', notFound: 'Şehir bulunamadı', searchError: 'Arama başarısız',
+        resultsGroup: 'Arama sonuçları', resultsDesc: 'Doğru şehri seçin.', emptyList: 'Liste boş geldi',
         method: 'Hesaplama yöntemi',
         appearanceGroup: 'Panel',
         language: 'Dil', showSeconds: 'Saniyeleri göster',
@@ -45,10 +46,11 @@ const T = {
         aladhanDesc: 'Mathematical calculation; may differ from the official Diyanet calendar by 1-2 minutes.',
         searchCity: 'Search city', currentLocation: 'Selected location',
         searching: 'Searching…', notFound: 'City not found', searchError: 'Search failed',
+        resultsGroup: 'Search results', resultsDesc: 'Pick the right city.', emptyList: 'The list came back empty',
         method: 'Calculation method',
         appearanceGroup: 'Panel',
         language: 'Language', showSeconds: 'Show seconds',
-        showSecondsDesc: 'E.g. "Asr in 0.20" instead of "Asr in 0.20.35"',
+        showSecondsDesc: 'E.g. "Asr in 0.20.35" instead of "Asr in 0.20"',
         position: 'Position in panel', left: 'Left', center: 'Center', right: 'Right',
         advancedGroup: 'Advanced', proxyUrl: 'Diyanet proxy URL',
     },
@@ -134,39 +136,53 @@ export default class PrayerTimesNilPreferences extends ExtensionPreferences {
             settings.set_string('diyanet-city-name', city.name);
         };
 
-        const loadCities = async (stateId, preferredCityId) => {
+        // Every user action starts a new load "generation"; answers of older loads
+        // (e.g. a slow reply for a previously selected country) are ignored.
+        let generation = 0;
+        const isStale = gen => gen !== generation;
+
+        const loadCities = async (gen, stateId, preferredCityId) => {
             placeholder(cityRow, t.loading);
             const cities = await fetchDiyanetPlaces(session, proxy(), 'Cities', stateId, cancellable);
+            if (isStale(gen))
+                return;
             setList(cityRow, 'city', cities);
-            const city = selectId(cityRow, 'city', preferredCityId);
-            saveCity(city);
+            if (cities.length > 0)
+                saveCity(selectId(cityRow, 'city', preferredCityId));
         };
-        const loadStates = async (countryId, preferredStateId, preferredCityId) => {
+        const loadStates = async (gen, countryId, preferredStateId, preferredCityId) => {
             placeholder(stateRow, t.loading);
             placeholder(cityRow, t.loading);
             const states = await fetchDiyanetPlaces(session, proxy(), 'States', countryId, cancellable);
+            if (isStale(gen))
+                return;
             setList(stateRow, 'state', states);
+            if (states.length === 0) {
+                setList(cityRow, 'city', []);
+                return;
+            }
             const state = selectId(stateRow, 'state', preferredStateId);
-            if (state) {
-                settings.set_int('diyanet-state-id', state.id);
-                await loadCities(state.id, preferredCityId);
-            }
+            settings.set_int('diyanet-state-id', state.id);
+            await loadCities(gen, state.id, preferredCityId);
         };
-        const guarded = async fn => {
+        const run = fn => {
+            const gen = ++generation;
             showStatus('');
-            try {
-                await fn();
-            } catch (e) {
-                if (!isCancelled(e))
+            fn(gen).catch(e => {
+                if (!isCancelled(e) && !isStale(gen))
                     showStatus(`${t.loadError}: ${e.message ?? e}`, true);
-            }
+            });
         };
-        const loadAll = () => guarded(async () => {
+        const loadAll = () => run(async gen => {
             placeholder(countryRow, t.loading);
             const countries = await fetchDiyanetPlaces(session, proxy(), 'Countries', null, cancellable);
+            if (isStale(gen))
+                return;
+            if (countries.length === 0)
+                throw new Error(t.emptyList);
             setList(countryRow, 'country', countries);
             const country = selectId(countryRow, 'country', settings.get_int('diyanet-country-id'));
-            await loadStates(country.id, settings.get_int('diyanet-state-id'), settings.get_int('diyanet-city-id'));
+            await loadStates(gen, country.id, settings.get_int('diyanet-state-id'), settings.get_int('diyanet-city-id'));
         });
         retryButton.connect('clicked', () => loadAll());
 
@@ -177,7 +193,7 @@ export default class PrayerTimesNilPreferences extends ExtensionPreferences {
             if (!country)
                 return;
             settings.set_int('diyanet-country-id', country.id);
-            guarded(() => loadStates(country.id, -1, -1));
+            run(gen => loadStates(gen, country.id, -1, -1));
         });
         stateRow.connect('notify::selected', () => {
             if (updating)
@@ -186,7 +202,7 @@ export default class PrayerTimesNilPreferences extends ExtensionPreferences {
             if (!state)
                 return;
             settings.set_int('diyanet-state-id', state.id);
-            guarded(() => loadCities(state.id, -1));
+            run(gen => loadCities(gen, state.id, -1));
         });
         cityRow.connect('notify::selected', () => {
             if (updating)
@@ -204,24 +220,59 @@ export default class PrayerTimesNilPreferences extends ExtensionPreferences {
         };
         updateCurrent();
         const searchRow = new Adw.EntryRow({title: t.searchCity, show_apply_button: true});
+
+        // Several places can share a name, so list the matches and let the user pick.
+        const resultsGroup = new Adw.PreferencesGroup({title: t.resultsGroup, description: t.resultsDesc, visible: false});
+        let resultRows = [];
+        const clearResults = () => {
+            for (const row of resultRows)
+                resultsGroup.remove(row);
+            resultRows = [];
+            resultsGroup.visible = false;
+        };
+        const applyCity = result => {
+            settings.set_string('aladhan-city-name', result.country ? `${result.name}, ${result.country}` : result.name);
+            settings.set_double('latitude', result.latitude);
+            settings.set_double('longitude', result.longitude);
+            searchRow.text = '';
+            clearResults();
+            updateCurrent();
+        };
+        let searchId = 0;
         searchRow.connect('apply', async () => {
             const query = searchRow.text.trim();
             if (!query)
                 return;
+            const id = ++searchId;
+            clearResults();
             currentRow.subtitle = t.searching;
             try {
-                const result = await geocodeCity(session, query, settings.get_string('language'), cancellable);
-                if (!result) {
+                const results = await searchCities(session, query, settings.get_string('language'), cancellable);
+                if (id !== searchId)
+                    return;
+                if (results.length === 0) {
                     currentRow.subtitle = t.notFound;
                     return;
                 }
-                settings.set_string('aladhan-city-name', result.country ? `${result.name}, ${result.country}` : result.name);
-                settings.set_double('latitude', result.latitude);
-                settings.set_double('longitude', result.longitude);
-                searchRow.text = '';
+                if (results.length === 1) {
+                    applyCity(results[0]);
+                    return;
+                }
                 updateCurrent();
+                for (const r of results) {
+                    const row = new Adw.ActionRow({
+                        title: r.name,
+                        subtitle: [r.region, r.country].filter(Boolean).join(', '),
+                        activatable: true,
+                    });
+                    row.add_suffix(new Gtk.Image({icon_name: 'go-next-symbolic'}));
+                    row.connect('activated', () => applyCity(r));
+                    resultsGroup.add(row);
+                    resultRows.push(row);
+                }
+                resultsGroup.visible = true;
             } catch (e) {
-                if (!isCancelled(e))
+                if (!isCancelled(e) && id === searchId)
                     currentRow.subtitle = `${t.searchError}: ${e.message ?? e}`;
             }
         });
@@ -233,6 +284,7 @@ export default class PrayerTimesNilPreferences extends ExtensionPreferences {
         aladhanGroup.add(currentRow);
         aladhanGroup.add(searchRow);
         aladhanGroup.add(methodRow);
+        locPage.add(resultsGroup);
 
         // --- Source switching
         let diyanetLoaded = false;
@@ -240,6 +292,8 @@ export default class PrayerTimesNilPreferences extends ExtensionPreferences {
             const isDiyanet = sourceValues[sourceRow.selected] === 'diyanet';
             diyanetGroup.visible = isDiyanet;
             aladhanGroup.visible = !isDiyanet;
+            if (isDiyanet)
+                clearResults();
             if (isDiyanet && !diyanetLoaded) {
                 diyanetLoaded = true;
                 loadAll();
